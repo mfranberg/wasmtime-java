@@ -3,6 +3,7 @@ import org.gradle.api.tasks.testing.logging.TestLogEvent
 
 plugins {
     id 'java-library'
+    id 'maven-publish'
     id 'signing'
     id "de.undercouch.download" version "4.1.1"
 }
@@ -191,5 +192,51 @@ static def addDependencyNodes(node, deps, scope) {
         dependencyNode.appendNode('artifactId', it.name)
         dependencyNode.appendNode('version', it.version)
         dependencyNode.appendNode('scope', scope)
+    }
+}
+
+publishing {
+    repositories {
+        mavenLocal()
+    }
+    publications {
+        mavenJava(MavenPublication) {
+            artifact source: universalJar, classifier: null
+            artifact sourcesJar
+            artifact javadocJar
+            pom {
+                name = 'wasmtime-java'
+                description = 'Java or JVM-language binding for Wasmtime'
+                url = 'https://github.com/mfranberg/wasmtime-java'
+                scm {
+                    url = 'https://github.com/mfranberg/wasmtime-java.git'
+                    connection = 'scm:https://github.com/mfranberg/wasmtime-java.git'
+                    developerConnection = 'scm:git@github.com:mfranberg/wasmtime-java.git'
+                }
+                licenses {
+                    license {
+                        name = 'The Apache License, Version 2.0'
+                        url = 'https://www.apache.org/licenses/LICENSE-2.0'
+                    }
+                }
+                developers {
+                    developer {
+                        name = 'Yuto Kawamura'
+                        email = 'kawamuray.dadada@gmail.com'
+                    }
+                }
+                withXml { xml ->
+                    // As we can't use `from components.java`, we have to build dependencies list in .pom manually.
+                    def node = xml.asNode().appendNode('dependencies')
+                    addDependencyNodes(node, project.configurations.api.allDependencies, 'compile')
+                    addDependencyNodes(node, project.configurations.implementation.allDependencies
+                            .findAll { !project.configurations.api.allDependencies.contains(it) }, 'runtime')
+                }
+            }
+        }
+    }
+    signing {
+        required { gradle.taskGraph.hasTask("publish") }
+        sign publishing.publications.mavenJava
     }
 }
